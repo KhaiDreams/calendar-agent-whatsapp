@@ -93,10 +93,10 @@ export async function listEvents({ startDate, endDate }) {
 
   const response = await cal.events.list({
     calendarId: config.googleCalendarId,
-    timeMin: new Date(`${startDate}T00:00:00`).toISOString(),
+    timeMin: new Date(`${startDate}T00:00:00-03:00`).toISOString(),
     timeMax: endDate
-      ? new Date(`${endDate}T23:59:59`).toISOString()
-      : new Date(`${startDate}T23:59:59`).toISOString(),
+      ? new Date(`${endDate}T23:59:59-03:00`).toISOString()
+      : new Date(`${startDate}T23:59:59-03:00`).toISOString(),
     singleEvents: true,
     orderBy: 'startTime',
   });
