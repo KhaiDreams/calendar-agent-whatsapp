@@ -1,7 +1,8 @@
 import cron from 'node-cron';
 import { startTelegramBot } from './telegram-bot.js';
 import { generateDailyMessage } from './daily-message.js';
-import { setBotContext } from './reminder-service.js';
+import { setBotContext, loadReminders } from './reminder-service.js';
+import { startHealthServer } from './health-server.js';
 import config from './config.js';
 
 console.log('═══════════════════════════════════════');
@@ -10,9 +11,15 @@ console.log('══════════════════════�
 
 const bot = startTelegramBot();
 
+// Sobe o healthcheck (usado pelo pipeline de deploy pra validar que o bot subiu)
+startHealthServer(config.telegramHealthPort, () => ({ status: 'ok', bot: 'telegram', uptime: process.uptime() }));
+
 // Configura o reminder-service com o contexto do Telegram
 setBotContext(config.telegramOwnerChatId, bot.telegram.sendMessage.bind(bot.telegram));
 console.log('[Reminder] Contexto do bot configurado.');
+
+// Recarrega lembretes salvos em disco (sobrevive a restarts/deploys)
+loadReminders();
 
 // Agenda mensagem diária às 7:00 da manhã (horário de Brasília)
 cron.schedule('0 7 * * *', async () => {

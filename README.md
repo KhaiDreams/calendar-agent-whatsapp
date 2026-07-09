@@ -1,6 +1,6 @@
 # Calendar Agent 🤖
 
-Personal AI assistant that manages your Google Calendar via **Telegram** and **WhatsApp**. Built with Node.js, OpenAI and Baileys.
+Personal AI assistant that manages your Google Calendar via **Telegram**. Built with Node.js, OpenAI and Telegraf.
 
 ## Features
 
@@ -60,21 +60,15 @@ Edit `.env`:
 OPENAI_API_KEY=sk-proj-your-key-here
 GOOGLE_SERVICE_ACCOUNT_PATH=./service-account.json
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghikl
-OWNER_NUMBER=5511999999999    # your WhatsApp number (for WhatsApp mode)
 ```
 
 ### 5. Run
 
 ```bash
-# Telegram only
 npm run telegram
 
-# WhatsApp only (experimental - may have issues)
-npm run whatsapp
-
-# Both together (via PM2)
-pm2 start src/telegram-index.js --name telegram
-pm2 start src/whatsapp-index.js --name whatsapp
+# or via PM2
+pm2 start ecosystem.config.js
 ```
 
-First time running Telegram: send any message to your bot → it will register you as the owner.
+First time running: send any message to your bot → it will register you as the owner.

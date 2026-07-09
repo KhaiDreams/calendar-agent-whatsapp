@@ -53,6 +53,19 @@ function parseRecurrence(recurrence) {
   return null;
 }
 
+/**
+ * Soma dias a uma string YYYY-MM-DD usando aritmética de calendário em UTC.
+ * Não usa timezone de wall-clock (Date.UTC só serve aqui pra calcular
+ * virada de dia/mês/ano, nunca pra interpretar horário local).
+ */
+function addDaysToDateString(dateStr, days) {
+  if (days === 0) return dateStr;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const utcDate = new Date(Date.UTC(y, m - 1, d));
+  utcDate.setUTCDate(utcDate.getUTCDate() + days);
+  return utcDate.toISOString().split('T')[0];
+}
+
 export async function createEvent({ summary, description, startDate, startTime, durationMinutes, recurrence }) {
   const cal = getClient();
 
@@ -60,12 +73,16 @@ export async function createEvent({ summary, description, startDate, startTime, 
     ? `${startDate}T${startTime}:00`
     : `${startDate}T09:00:00`;
 
+  const MINUTES_PER_DAY = 24 * 60;
   const dur = durationMinutes || 60;
   const [sH, sM] = (startTime || '09:00').split(':').map(Number);
   const endTotalMinutes = sH * 60 + sM + dur;
-  const endH = String(Math.floor(endTotalMinutes / 60) % 24).padStart(2, '0');
-  const endM = String(endTotalMinutes % 60).padStart(2, '0');
-  const endDateTime = `${startDate}T${endH}:${endM}:00`;
+  const dayOffset = Math.floor(endTotalMinutes / MINUTES_PER_DAY);
+  const endMinutesInDay = endTotalMinutes % MINUTES_PER_DAY;
+  const endH = String(Math.floor(endMinutesInDay / 60)).padStart(2, '0');
+  const endM = String(endMinutesInDay % 60).padStart(2, '0');
+  const endDate = addDaysToDateString(startDate, dayOffset);
+  const endDateTime = `${endDate}T${endH}:${endM}:00`;
 
   const event = {
     summary,

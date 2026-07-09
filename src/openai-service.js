@@ -159,21 +159,35 @@ const toolFunctions = {
 
   delete_event: async (args) => {
     const events = await calendar.listEvents({ startDate: args.date, endDate: args.date });
-    const match = events.find((e) => e.summary?.toLowerCase().includes(args.summary.toLowerCase()));
-    if (!match) return JSON.stringify({ success: false, error: `Evento "${args.summary}" não encontrado em ${args.date}` });
-    await calendar.deleteEvent(match.id);
-    return JSON.stringify({ success: true, deleted: match.summary });
+    const matches = events.filter((e) => e.summary?.toLowerCase().includes(args.summary.toLowerCase()));
+    if (matches.length === 0) return JSON.stringify({ success: false, error: `Evento "${args.summary}" não encontrado em ${args.date}` });
+    if (matches.length > 1) {
+      return JSON.stringify({
+        success: false,
+        error: `Encontrei ${matches.length} eventos parecidos em ${args.date}. Pergunte ao usuário qual ele quer usando os candidates abaixo.`,
+        candidates: matches.map((e) => ({ id: e.id, summary: e.summary, start: e.start?.dateTime || e.start?.date })),
+      });
+    }
+    await calendar.deleteEvent(matches[0].id);
+    return JSON.stringify({ success: true, deleted: matches[0].summary });
   },
 
   update_event: async (args) => {
     const events = await calendar.listEvents({ startDate: args.date, endDate: args.date });
-    const match = events.find((e) => e.summary?.toLowerCase().includes(args.summary.toLowerCase()));
-    if (!match) return JSON.stringify({ success: false, error: `Evento "${args.summary}" não encontrado em ${args.date}` });
+    const matches = events.filter((e) => e.summary?.toLowerCase().includes(args.summary.toLowerCase()));
+    if (matches.length === 0) return JSON.stringify({ success: false, error: `Evento "${args.summary}" não encontrado em ${args.date}` });
+    if (matches.length > 1) {
+      return JSON.stringify({
+        success: false,
+        error: `Encontrei ${matches.length} eventos parecidos em ${args.date}. Pergunte ao usuário qual ele quer usando os candidates abaixo.`,
+        candidates: matches.map((e) => ({ id: e.id, summary: e.summary, start: e.start?.dateTime || e.start?.date })),
+      });
+    }
     const updates = {};
     if (args.newSummary) updates.summary = args.newSummary;
     if (args.newDate) updates.startDate = args.newDate;
     if (args.newTime) updates.startTime = args.newTime;
-    const updated = await calendar.updateEvent(match.id, updates);
+    const updated = await calendar.updateEvent(matches[0].id, updates);
     return JSON.stringify({
       success: true,
       event: { id: updated.id, summary: updated.summary, start: updated.start?.dateTime || updated.start?.date },
@@ -236,6 +250,7 @@ FUNCIONAMENTO:
 - Depois de obter a data atual, CONTINUE e chame a tool necessária (list_events, create_event, etc). get_current_datetime sozinho NUNCA é a resposta final.
 - Se perguntarem o que tem na agenda → chame list_events. O resultado dessa tool é a ÚNICA fonte de verdade sobre eventos. IGNORE completamente qualquer informação sobre eventos que apareça no histórico da conversa — datas, horários e detalhes vêm APENAS do list_events.
 - Se pediram pra criar/agendar algo → ANTES de criar, chame list_events pra verificar se já existe algo no mesmo horário. Se houver conflito, avise o usuário.
+- Se delete_event ou update_event retornar um campo "candidates" (mais de um evento parecido no mesmo dia), NÃO escolha um sozinho. Liste os horários dos candidates e pergunte ao usuário qual ele quer.
 - Se pediram "me lembra", "me avise" → chame set_reminder.
 - Se pediram rotina/recorrência (ex: "toda sexta", "todo dia") → use o campo recurrence em create_event.
 - Dados padrão ao criar: horário=09:00, duração=60 min.
