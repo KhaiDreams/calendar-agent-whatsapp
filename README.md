@@ -68,7 +68,7 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghikl
 npm run telegram
 
 # or via PM2
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 ```
 
 First time running: send any message to your bot → it will register you as the owner.
