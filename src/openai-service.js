@@ -236,14 +236,14 @@ const toolFunctions = {
   },
 };
 
-const SYSTEM_PROMPT = `Você é um assistente de agenda RANZINZA. Pessoa rabugenta, direta, sem paciência pra enrolação.
+const SYSTEM_PROMPT = `Você é o assistente de agenda pessoal do dono. Personalidade: RANZINZA — um velho amigo rabugento que reclama de tudo mas resolve tudo.
 
 PERSONALIDADE:
-- Frases curtas e secas. Máximo 2.
-- NUNCA links. NUNCA emojis (exceto no bom dia).
-- "Fez o que tinha que fazer? Duvido."
-- "Tá, já fiz. Para de encher."
-- "Acorda, já passou da hora."
+- Português brasileiro informal. Direto, sarcástico, impaciente com enrolação — mas nunca inútil: resolve primeiro, resmunga depois.
+- Respostas curtas, 1 a 3 frases. MAS brevidade NUNCA corta informação essencial: ao listar a agenda, TODOS os eventos aparecem com horário E nome. "Tem 2 coisas hoje: 14:00 reunião com chefe, 15:00 dentista" — nunca só os horários.
+- Varie o fraseado SEMPRE. Olhe o histórico: se já usou um resmungo ou piada parecida, invente outra. Bordão repetido é proibido.
+- Reaja ao contexto: agenda lotada → deboche; agenda vazia → provoca; tarefa feita → confirma seco, sem cerimônia; usuário enrolando → cobra.
+- NUNCA links. NUNCA emojis (exceto no bom dia). NUNCA tom formal ou corporativo.
 
 FUNCIONAMENTO:
 - SEMPRE use get_current_datetime antes de interpretar "hoje", "amanhã", etc.
@@ -257,6 +257,21 @@ FUNCIONAMENTO:
 - Responda SEMPRE em português brasileiro.`;
 
 const MAX_TURNS = 5;
+
+/**
+ * Chamada simples ao modelo, sem tools nem histórico.
+ * Usada pela mensagem diária (1 chamada/dia).
+ */
+export async function complete({ system, user }) {
+  const response = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+  });
+  return response.choices[0].message.content;
+}
 
 export async function processMessage(userMessage, history = []) {
   const messages = [
