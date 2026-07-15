@@ -183,10 +183,27 @@ const toolFunctions = {
         candidates: matches.map((e) => ({ id: e.id, summary: e.summary, start: e.start?.dateTime || e.start?.date })),
       });
     }
+    const original = matches[0];
     const updates = {};
     if (args.newSummary) updates.summary = args.newSummary;
-    if (args.newDate) updates.startDate = args.newDate;
-    if (args.newTime) updates.startTime = args.newTime;
+
+    if (args.newDate || args.newTime) {
+      const originalStart = original.start?.dateTime || original.start?.date || '';
+      // Preserva data OU horário originais quando só um dos dois muda —
+      // sem isso, mudar só o horário perdia a data (e vice-versa).
+      updates.startDate = args.newDate || originalStart.slice(0, 10);
+      updates.startTime = args.newTime || originalStart.slice(11, 16) || undefined;
+
+      // Preserva a duração original do evento. Sem isso, o Google Calendar
+      // rejeita a mudança quando o novo início cai depois do fim antigo
+      // (comum ao mover um evento pra outro dia) — é o "erro interno da
+      // ferramenta" que aparecia sem explicação nenhuma.
+      if (original.start?.dateTime && original.end?.dateTime) {
+        const durationMs = new Date(original.end.dateTime) - new Date(original.start.dateTime);
+        updates.durationMinutes = Math.round(durationMs / 60000);
+      }
+    }
+
     const updated = await calendar.updateEvent(matches[0].id, updates);
     return JSON.stringify({
       success: true,
@@ -253,10 +270,18 @@ FUNCIONAMENTO:
 - Se delete_event ou update_event retornar um campo "candidates" (mais de um evento parecido no mesmo dia), NÃO escolha um sozinho. Liste os horários dos candidates e pergunte ao usuário qual ele quer.
 - Se pediram "me lembra", "me avise" → chame set_reminder.
 - Se pediram rotina/recorrência (ex: "toda sexta", "todo dia") → use o campo recurrence em create_event.
+- Se o usuário quer mover/achar um evento descrito só por data relativa (ex: "o que eu tinha ontem"), NUNCA invente o título. Rode list_events na data de origem primeiro pra descobrir o evento certo, e só então chame update_event/delete_event com o summary exato retornado.
 - Dados padrão ao criar: horário=09:00, duração=60 min.
-- Responda SEMPRE em português brasileiro.`;
 
-const MAX_TURNS = 5;
+MENSAGENS COM VÁRIOS PEDIDOS:
+- Se a mensagem tiver mais de um pedido (ex: "marca X, desmarca Y de ontem, e me lembra Z às 18h"), trate como uma lista de tarefas: execute TODAS, uma por uma, chamando quantas tools forem necessárias, antes de responder. Tools independentes entre si podem ser chamadas juntas no mesmo turno.
+- Se UMA das tarefas esbarrar em ambiguidade ou erro, não aborte a mensagem inteira: resolva as outras normalmente e pergunte/avise só sobre a parte que travou.
+- Nesse caso a resposta pode passar de 3 frases — confirme cada tarefa feita (o que foi criado, o que foi desmarcado, o lembrete marcado), sem virar corporativo.
+
+ERROS:
+- Se uma tool retornar "error", conte pro usuário o que ela disse de verdade (o motivo específico) — nunca invente "deu erro, o sistema é ruim" sem dizer qual foi o erro.`;
+
+const MAX_TURNS = 10;
 
 /**
  * Chamada simples ao modelo, sem tools nem histórico.
@@ -310,7 +335,8 @@ export async function processMessage(userMessage, history = []) {
             : JSON.stringify({ error: `Função ${fnName} não encontrada` });
         } catch (err) {
           console.error(`[OpenAI] Erro na tool ${fnName}:`, err);
-          result = JSON.stringify({ success: false, error: 'Erro interno ao executar ação' });
+          const detail = err?.response?.data?.error?.message || err?.errors?.[0]?.message || err?.message || 'erro desconhecido';
+          result = JSON.stringify({ success: false, error: `Falha ao executar ${fnName}: ${detail}` });
         }
         messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
       }

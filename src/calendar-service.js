@@ -143,18 +143,26 @@ export async function updateEvent(eventId, updates) {
   if (updates.summary) event.summary = updates.summary;
   if (updates.description) event.description = updates.description;
   if (updates.startDate || updates.startTime) {
-    const startDateTime = updates.startTime
-      ? `${updates.startDate || ''}T${updates.startTime}:00`
-      : `${updates.startDate || ''}T09:00:00`;
+    const startTime = updates.startTime || '09:00';
+    const startDateTime = `${updates.startDate || ''}T${startTime}:00`;
     event.start = { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' };
-  }
-  if (updates.durationMinutes && event.start) {
-    const endDate = new Date(event.start.dateTime);
-    endDate.setMinutes(endDate.getMinutes() + updates.durationMinutes);
-    event.end = {
-      dateTime: endDate.toISOString().split('.')[0],
-      timeZone: 'America/Sao_Paulo',
-    };
+
+    // Mesma aritmética de minutos/dia do createEvent — NUNCA usar
+    // `new Date(stringSemOffset)` aqui: o horário acima é "hora de parede"
+    // em São Paulo sem offset explícito, e o Date nativo do Node
+    // interpretaria como hora local do SERVIDOR (ex: UTC na EC2), o que
+    // desloca o horário calculado em até 3h.
+    if (updates.durationMinutes) {
+      const MINUTES_PER_DAY = 24 * 60;
+      const [sH, sM] = startTime.split(':').map(Number);
+      const endTotalMinutes = sH * 60 + sM + updates.durationMinutes;
+      const dayOffset = Math.floor(endTotalMinutes / MINUTES_PER_DAY);
+      const endMinutesInDay = endTotalMinutes % MINUTES_PER_DAY;
+      const endH = String(Math.floor(endMinutesInDay / 60)).padStart(2, '0');
+      const endM = String(endMinutesInDay % 60).padStart(2, '0');
+      const endDate = addDaysToDateString(updates.startDate || '', dayOffset);
+      event.end = { dateTime: `${endDate}T${endH}:${endM}:00`, timeZone: 'America/Sao_Paulo' };
+    }
   }
 
   const response = await cal.events.patch({
